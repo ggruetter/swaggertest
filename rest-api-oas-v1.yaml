@@ -1,0 +1,551 @@
+openapi: 3.0.0
+info:
+  title: REST API
+  version: '1.0'
+  contact:
+    name: Georg Grütter
+    url: 'https://connect.bosch.com/profiles/html/profileView.do?key=b8cec013-b3a6-4f9e-9df2-1e9edff98354'
+    email: georg.gruetter@bosch.io
+  license:
+    name: BIOSLv4
+    url: 'http://bios.intranet.bosch.com/bioslv4.txt'
+  description: |-
+    This API provides access to scan results of the Social Coding platform compliance checker. It allows administrators of the Social Coding platform to monitor the compliance state of projects and repositories on the platform and, in case of violations that are not automatically corrected, contact the responsible administrators. The API also allows administrators of projects on the Social Coding platform to individually scan their projects for violations.
+
+    Benefits:
+    - Easily include results of compliance scans in reporting tools, such as Splunk
+    - Easily integrate the compliance checker into dashboards for the Social Coding platform
+    - Integrate the project scan feature into the BIOSphere portal
+
+    Features
+    - Get the list of metadata for all scans (available to all users)
+    - Get metadata for the latest scan (available to all users)
+    - Get metadata for individual scans (available to all users)
+    - Get detailed scan results including compliance violations for individual scans (available to Social Coding platform admins)
+    - Scan individual project and get scan results (available for associates with access to the project)
+servers:
+  - url: 'http://bios.intranet.bosch.com:4712'
+    description: Production
+  - description: ''
+tags:
+  - name: Scans
+    description: Accessing results of compliance scans
+  - name: Scan
+    description: Scanning projects
+paths:
+  /api/scans:
+    get:
+      summary: Scans
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _links:
+                    type: object
+                    required:
+                      - self
+                    description: HAL+JSON link relations
+                    properties:
+                      self:
+                        $ref: '#/components/schemas/href'
+                      latest:
+                        $ref: '#/components/schemas/href'
+                  _embedded:
+                    type: object
+                    description: Embedded list of metadata about performed scans
+                    properties:
+                      scans:
+                        type: array
+                        description: The list of scan metadata
+                        items:
+                          $ref: '#/components/schemas/embedded-scan-metadata'
+                required:
+                  - _links
+            application/xml:
+              schema:
+                type: object
+                properties:
+                  _links:
+                    type:
+                      - string
+                      - object
+                    properties:
+                      self:
+                        type: object
+                        properties:
+                          href:
+                            type: string
+                      next:
+                        type: object
+                        properties:
+                          href:
+                            type: string
+                      previous:
+                        type: object
+                        properties:
+                          href:
+                            type: string
+                  scans:
+                    type: array
+                    items:
+                      $ref: ''
+              examples: {}
+      operationId: get-scans
+      description: Returns the list of meta data for each scan.
+      security: []
+      parameters:
+        - schema:
+            type: integer
+            default: 1
+            example: 1
+            exclusiveMinimum: true
+            minimum: 0
+          in: query
+          name: start
+          description: The start index in the list of scan results to return
+        - schema:
+            type: integer
+            default: 50
+            exclusiveMinimum: true
+            exclusiveMaximum: true
+            maximum: 1000
+            minimum: 0
+          in: query
+          name: limit
+          description: The maximum number of scan results to return
+      tags:
+        - Scans
+    parameters: []
+  '/api/scans/{scanid}':
+    parameters:
+      - schema:
+          type: integer
+          format: double
+          exclusiveMinimum: false
+          minimum: 1
+        name: scanid
+        in: path
+        description: The id of the scan
+        required: true
+    get:
+      summary: Scan
+      tags:
+        - Scans
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/standalone-scan-metadata'
+        '400':
+          description: The scan ID is invalid
+        '404':
+          description: A scan with the given ID does not exist
+      operationId: get-scans-scanid
+      description: Returns the metadata for an individual scan.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+  /api/scans/latest:
+    get:
+      summary: Latest Scan
+      tags:
+        - Scans
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/standalone-scan-metadata'
+        '404':
+          description: No scans available
+      operationId: get-scans-latest
+      description: Returns metadata of the latest scan.
+    parameters: []
+  '/api/scans/{scanid}/details':
+    parameters:
+      - schema:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: false
+        name: scanid
+        in: path
+        required: true
+        description: The ID of the scan to retrieve details from
+    get:
+      summary: Scan Details
+      tags:
+        - Scans
+      responses:
+        '200':
+          description: OK
+          headers: {}
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _links:
+                    type: object
+                    description: HAL+JSON link relations
+                    properties:
+                      self:
+                        $ref: '#/components/schemas/href'
+                      scans:
+                        $ref: '#/components/schemas/href'
+                      next:
+                        $ref: '#/components/schemas/href'
+                      prev:
+                        $ref: '#/components/schemas/href'
+                    required:
+                      - self
+                      - scans
+                  scan:
+                    $ref: '#/components/schemas/scan-metadata'
+                  violations:
+                    type: array
+                    description: The list of violations found during the scan.
+                    items:
+                      $ref: '#/components/schemas/violation'
+              examples: null
+        '400':
+          description: Invalid scan ID
+        '404':
+          description: Scan with given Id not found
+      operationId: get-scans-scanid-details
+      description: 'Returns detailed information for a specific scan, including scan metadata and the found violations.'
+      security:
+        - X-API-Key: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/scan-details'
+  /api/meta:
+    get:
+      summary: Your GET endpoint
+      tags:
+        - Scans
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _links:
+                    type: object
+                    description: HAL+JSON link relations
+                    properties:
+                      _self:
+                        $ref: '#/components/schemas/href'
+                      scans:
+                        $ref: '#/components/schemas/href'
+                  version:
+                    type: string
+                    description: Version of the compliance checker
+                  scannedSystem:
+                    type: string
+                    description: URL of the system that is scanned by the compliance checker
+                  dryRun:
+                    type:
+                      - string
+                      - boolean
+                    description: True if and only if the the compliance checker is configured to not correct found violations.
+                required:
+                  - version
+                  - scannedSystem
+                  - dryRun
+      operationId: get-meta
+      description: 'Returns meta information about the compliance checker, such as the scanned system, whether or not a scan is active and if the scanner works in dry run mode.'
+    parameters: []
+  '/api/scan/{projectKey}':
+    parameters:
+      - schema:
+          type: string
+        name: projectKey
+        in: path
+        required: true
+    get:
+      summary: Your GET endpoint
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _links:
+                    type: object
+                    required:
+                      - ''
+                    properties:
+                      '':
+                        $ref: '#/components/schemas/href'
+                  scanMetadata:
+                    $ref: '#/components/schemas/individual-scan-metadata'
+                  violations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/violation'
+                required:
+                  - _links
+                  - scanMetadata
+                  - violations
+        '400':
+          description: Authentication was missing or project key was missing in request
+        '401':
+          description: The project is not accessible for the given user
+        '404':
+          description: Project with given key could not be found
+        '500':
+          description: The scan could not be performed
+      operationId: get-api-scan-projectKey
+      tags:
+        - Scan
+      description: Initiates a scan for the project with the given project key and returns the scan results. The scan scans the project as well as all its repositories.
+      security:
+        - Basic Auth: []
+components:
+  schemas:
+    href:
+      title: href
+      type: object
+      description: link in _links section
+      properties:
+        href:
+          type: string
+          description: The target of a link relation
+      required:
+        - href
+    standalone-scan-metadata:
+      title: standalone scan metadata
+      type: object
+      description: Metadata describing the results of a scan
+      properties:
+        scan:
+          $ref: '#/components/schemas/scan-metadata'
+        _links:
+          type: object
+          required:
+            - self
+            - details
+            - scans
+          description: HAL+JSON link relations
+          properties:
+            self:
+              $ref: '#/components/schemas/href'
+            details:
+              $ref: '#/components/schemas/href'
+            scans:
+              $ref: '#/components/schemas/href'
+            next:
+              $ref: '#/components/schemas/href'
+            prev:
+              $ref: '#/components/schemas/href'
+      required:
+        - scan
+        - _links
+    violation:
+      title: violation
+      type: object
+      properties:
+        violation:
+          type: string
+          enum:
+            - InvalidGlobalPermissionInProject
+            - InvalidGroupPermissionInProject
+            - InvalidGroupPermissionInRepository
+            - InvalidBranchPermissionInRepository
+            - InvalidGroupPermissionForAdminGroupInProject
+            - InvalidGroupPermissionForAdminGroupInRepository
+          description: Short description of the found compliance violation
+        project:
+          type: object
+          required:
+            - name
+            - href
+          description: 'The project, in which the violation was found'
+          properties:
+            name:
+              type: string
+              description: The name of the project
+            href:
+              type: string
+              description: Link to the project in the scanned system
+        repo:
+          type: object
+          description: 'The optional repository, in which the violation was found'
+          properties:
+            name:
+              type: string
+              description: Name of the repository
+            href:
+              type: string
+              description: Link to the repository in the scanned system
+          required:
+            - name
+            - href
+        email:
+          type: string
+          description: Email address of of the project/repo administrator who made the change that led to the violation
+        corrected:
+          type:
+            - string
+            - boolean
+          description: 'True if the violation was corrected automatically, false otherwise.'
+        branchRestriction:
+          type: object
+          description: Incompliant branch restriction
+          properties:
+            id:
+              type: integer
+              description: Id of the entry in the repos audit trail
+            type:
+              type: string
+              description: 'Type of restriction (e. g. "read-only" or "no-delete")'
+            matcherType:
+              type: string
+              description: 'Type of matcher, e. g. "Pattern" or "Branch"'
+            matcher:
+              type: string
+              description: The criteria for matching branches
+          required:
+            - id
+            - type
+            - matcherType
+            - matcher
+      required:
+        - violation
+        - project
+        - email
+        - corrected
+    embedded-scan-metadata:
+      title: embedded-scan-metadata
+      type: object
+      properties:
+        _embedded:
+          type: object
+          description: HAL+JSON embedded objects
+          properties:
+            scans:
+              type: array
+              description: The list of scan metadata
+              items:
+                type: object
+                properties:
+                  _links:
+                    type:
+                      - string
+                      - object
+                    description: HAL+JSON link relations
+                    properties:
+                      self:
+                        $ref: '#/components/schemas/href'
+                      details:
+                        $ref: '#/components/schemas/href'
+                  scan:
+                    $ref: '#/components/schemas/scan-metadata'
+    scan-details:
+      title: scan-details
+      type: object
+      properties:
+        _links:
+          type: object
+          required:
+            - self
+            - scans
+          description: HAL+JSON link relations
+          properties:
+            self:
+              $ref: '#/components/schemas/href'
+            scans:
+              $ref: '#/components/schemas/href'
+            next:
+              $ref: '#/components/schemas/href'
+            prev:
+              $ref: '#/components/schemas/href'
+        scan:
+          $ref: '#/components/schemas/scan-metadata'
+        violations:
+          type:
+            - string
+            - array
+          description: The list of violations found during the scan
+          items:
+            $ref: '#/components/schemas/violation'
+      required:
+        - _links
+    scan-metadata:
+      title: scan-metadata
+      type: object
+      description: ''
+      properties:
+        id:
+          type: string
+          description: The ID of the scan
+        date:
+          type: string
+          description: The date of the scan
+        prettyDate:
+          type: string
+          description: The date of the scan in ISO 8601 Format
+        nbOfViolations:
+          type: string
+          description: The number of violations found in the scan
+        nbOfUncorrectedViolations:
+          type: string
+          description: The number of violations found during the scan that were not corrected
+        scannedSystem:
+          type: string
+          description: The URL of the system that was scanned
+        dryRun:
+          type: string
+          description: 'True if the scanner '
+      required:
+        - id
+        - date
+        - prettyDate
+        - nbOfViolations
+        - nbOfUncorrectedViolations
+        - scannedSystem
+        - dryRun
+    individual-scan-metadata:
+      title: individual-scan-metadata
+      type: object
+      properties:
+        date:
+          type: string
+        prettyDate:
+          type: string
+        nbOfViolations:
+          type: integer
+        scannedSystem:
+          type: string
+        project:
+          type: string
+      required:
+        - date
+        - prettyDate
+        - nbOfViolations
+        - scannedSystem
+        - project
+  securitySchemes:
+    X-API-Key:
+      name: API Key
+      type: apiKey
+      in: header
+      description: Please contact the maintainer of this API to request an API Key
+    Basic Auth:
+      type: http
+      scheme: basic
